@@ -126,21 +126,26 @@ select.st{font-size:12px;padding:4px 6px}
 
 <div class="tiles" id="tiles"></div>
 
-<h2>Apply now — eligible, affordable and commutable</h2>
+<h2 id="availHead">Available to you now</h2>
 <div class="scroll"><table id="applyTable"><thead></thead><tbody></tbody></table></div>
 <div class="note" id="applyNote"></div>
 
-<h2>Everything tracked <span class="mut" style="font-weight:400;font-size:13px">— including what you do not qualify for, and why</span></h2>
-<div class="bar">
-  <select id="filter" style="max-width:320px">
-    <option value="all">Show all</option>
-    <option value="elig">Income eligible only</option>
-    <option value="review">Needs review</option>
-    <option value="geo">In allowed geography</option>
-    <option value="hc">Housing Connect lotteries only</option>
-  </select>
-</div>
-<div class="scroll"><table id="allTable"><thead></thead><tbody></tbody></table></div>
+<details class="card" id="hiddenCard" style="margin-top:22px">
+  <summary id="hiddenSummary">Not available yet</summary>
+  <div class="note" style="margin-top:6px">These are hidden from the list above because they fail at least one
+    of the three tests at your current settings. Change your inputs — income, household size, rent ceiling or
+    geography — and any that start qualifying move up automatically.</div>
+  <div class="bar" style="margin-top:12px">
+    <select id="filter" style="max-width:340px">
+      <option value="all">Everything not yet available</option>
+      <option value="near">Near misses only (within $10k of qualifying)</option>
+      <option value="review">Needs review — limits not published</option>
+      <option value="geo">Ruled out by geography only</option>
+      <option value="hc">Housing Connect lotteries only</option>
+    </select>
+  </div>
+  <div class="scroll"><table id="allTable"><thead></thead><tbody></tbody></table></div>
+</details>
 
 <h2>Commute reference — best stations for Crotona Park East</h2>
 <div class="scroll" style="max-height:44vh"><table id="transitTable"><thead></thead><tbody></tbody></table></div>
@@ -287,6 +292,30 @@ function enrich(r){
   r.pass = r.elig==="YES" && r.geo && unitOK &&
     ["VERY AFFORDABLE","AFFORDABLE","BORDERLINE"].includes(r.afford) &&
     (r.door==null||r.door<=INP.cmax);
+
+  // How far off is it, and what exactly is blocking it?
+  const mx=r["max"+INP.hh], inc=income();
+  r.gap=null;
+  if(r.elig==="NO — below minimum") r.gap=r.min-inc;
+  else if(r.elig==="NO — over maximum") r.gap=inc-mx;
+  const why=[];
+  if(r.elig==="NO — below minimum")
+    why.push("Earn "+money(r.gap)+" more, or add a household member — minimum is "+money(r.min));
+  else if(r.elig==="NO — over maximum")
+    why.push("Income is "+money(r.gap)+" over the "+money(mx)+" cap for a household of "+INP.hh+
+             (INP.hh<3?" — a larger household raises it":""));
+  else if(r.elig==="NO — no unit for this household size")
+    why.push("No unit here for a household of "+INP.hh+" — needs "+(r.max2!=="N/A"?"2":"3")+"+ people");
+  else if(r.elig.startsWith("REVIEW")) why.push("Income limits not published — ask the agent");
+  if(!r.geo) why.push("Geography off: "+r.corridor+" is switched off in your inputs");
+  if(!unitOK) why.push((r.beds===0?"Studios":"1-bedrooms")+" switched off in your inputs");
+  if(r.rent!=null&&r.rent>INP.amax)
+    why.push("Rent "+money(r.rent)+" is over your "+money(INP.amax)+" ceiling");
+  else if(r.afford==="ABOVE TARGET") why.push("Costs more than your target burden");
+  if(r.door!=null&&r.door>INP.cmax)
+    why.push("Commute "+r.door+" min exceeds your "+INP.cmax+" min limit");
+  if(r.status==="APPLIED") why.unshift("Already applied");
+  r.why=why.join(" · ")||"—";
   r.key=r.id+"|"+r.unit+"|"+r.ami;
   r.status=STATUS[r.key]||"NEW";
   r.days=r.deadline?Math.ceil((new Date(r.deadline)-new Date())/864e5):null;
@@ -425,21 +454,30 @@ function render(){
     r.mepref==="YES"?'<span class="pill g">YES</span>':'<span class="mut">no</span>',
     sel(r)
   ].map(c=>"<td>"+c+"</td>").join("")+"</tr>");
+  $("availHead").innerHTML="Available to you now "+
+    '<span class="mut" style="font-weight:400;font-size:13px">— '+pass.length+
+    (pass.length===1?" apartment that passes":" apartments that pass")+" all three tests, every one of them shown</span>";
   $("applyNote").innerHTML=pass.length?
-    "Sorted by deadline, then affordability, then transit quality — not by any guess at your odds.":
-    "Nothing passes all three tests at these settings. Widen the geography toggles or raise the rent ceiling to see near-misses below.";
+    "Sorted by deadline, then affordability, then transit quality — not by any guess at your odds. This is the whole list, not a top few.":
+    "Nothing qualifies at your current settings. Open “Not available yet” below to see what is closest and exactly what would have to change.";
 
+  // Everything that does NOT currently qualify stays out of sight until the inputs make it qualify.
+  const hidden=ROWS.filter(r=>!r.pass||r.status==="APPLIED");
   const f=$("filter").value;
-  let show=ROWS.slice();
-  if(f==="elig") show=show.filter(r=>r.elig==="YES");
+  let show=hidden.slice();
+  if(f==="near")   show=show.filter(r=>r.gap!=null&&r.gap<=10000);
   if(f==="review") show=show.filter(r=>r.elig.startsWith("REVIEW"));
-  if(f==="geo") show=show.filter(r=>r.geo);
-  if(f==="hc") show=show.filter(r=>r.source.startsWith("NYC Housing Connect"));
-  show.sort((a,b)=>(b.elig==="YES")-(a.elig==="YES")||(a.rent??1e9)-(b.rent??1e9));
+  if(f==="geo")    show=show.filter(r=>!r.geo&&r.elig==="YES");
+  if(f==="hc")     show=show.filter(r=>r.source.startsWith("NYC Housing Connect"));
+  show.sort((a,b)=>(a.gap??1e9)-(b.gap??1e9)||(a.rent??1e9)-(b.rent??1e9));
+  $("hiddenSummary").textContent="Not available yet — "+hidden.length+
+    " hidden"+(hidden.filter(r=>r.gap!=null&&r.gap<=10000).length?
+      " ("+hidden.filter(r=>r.gap!=null&&r.gap<=10000).length+" within $10k of qualifying)":"");
 
-  const B=["Building","Area","Unit","AMI","Rent","Min income","Max (HH "+INP.hh+")","Eligible?","Affordability",
-           "Station","Commute","Grade","Geography","Asset cap","Muni 10%","Source","Status","Notes"];
+  const B=["What would have to change","Building","Area","Unit","AMI","Rent","Min income","Max (HH "+INP.hh+")",
+           "Eligible?","Affordability","Station","Commute","Grade","Geography","Asset cap","Muni 10%","Source","Status"];
   tbl("allTable",B,show,r=>"<tr>"+[
+    (r.gap!=null&&r.gap<=10000?'<span class="pill w">close</span> ':"")+r.why,
     '<a href="'+r.url+'" target="_blank" rel="noopener">'+r.name+"</a>"+(r.isNew?' <span class="pill s">NEW</span>':"")+
       '<br><span class="mut">'+(r.addr||"")+"</span>",
     (r.hood||"")+'<br><span class="mut">'+r.boro+"</span>",
@@ -456,8 +494,7 @@ function render(){
     money(r.asset)+(r.assetOK===false?' <span class="pill b">over</span>':""),
     r.mepref==="YES"?'<span class="pill g">'+(r.prefpct||10)+"%</span>":'<span class="mut">no</span>',
     '<span class="mut">'+r.source+"</span>",
-    sel(r),
-    '<span class="mut">'+(r.notes||"")+"</span>"
+    sel(r)
   ].map(c=>"<td>"+c+"</td>").join("")+"</tr>");
 
   const T=["Station","Lines","Borough","Minutes to work","Transfers","Arrives at"];
