@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NYC Housing Lottery Tracker</title>
+<style>
+:root{
+  --bg:#f6f7f9; --card:#ffffff; --ink:#15181d; --muted:#5d6570; --line:#e2e6eb;
+  --navy:#1f3864; --blue:#2e5c8a; --accent:#0563c1;
+  --good-bg:#d9f2e2; --good-ink:#0a6b38;
+  --warn-bg:#fdf0cf; --warn-ink:#8a6300;
+  --bad-bg:#fbe0e3; --bad-ink:#9c1c2c;
+  --star-bg:#fff3c9; --star-ink:#7a5b00;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12151a; --card:#191d24; --ink:#e8ebef; --muted:#9aa4b0; --line:#2a313b;
+  --navy:#9db8e8; --blue:#7ea6dd; --accent:#6fb0ff;
+  --good-bg:#12331f; --good-ink:#6ee79f;
+  --warn-bg:#3a2e06; --warn-ink:#f2c94c;
+  --bad-bg:#3a1218; --bad-ink:#ff8d9b;
+  --star-bg:#3a2f05; --star-ink:#ffd95e;
+}}
+:root[data-theme="dark"]{
+  --bg:#12151a; --card:#191d24; --ink:#e8ebef; --muted:#9aa4b0; --line:#2a313b;
+  --navy:#9db8e8; --blue:#7ea6dd; --accent:#6fb0ff;
+  --good-bg:#12331f; --good-ink:#6ee79f;
+  --warn-bg:#3a2e06; --warn-ink:#f2c94c;
+  --bad-bg:#3a1218; --bad-ink:#ff8d9b;
+  --star-bg:#3a2f05; --star-ink:#ffd95e;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+.wrap{max-width:1500px;margin:0 auto;padding:0 16px 64px}
+header{background:var(--navy);color:#fff;padding:20px 0;margin-bottom:20px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) header{background:#0e1726}}
+:root[data-theme="dark"] header{background:#0e1726}
+header .wrap{padding-bottom:0}
+h1{margin:0;font-size:21px;letter-spacing:-.01em;color:#fff}
+.sub{opacity:.82;font-size:13px;margin-top:5px;color:#fff}
+h2{font-size:16px;margin:28px 0 10px;color:var(--navy)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.row{display:flex;flex-wrap:wrap;gap:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px}
+label{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:4px}
+input,select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;
+  background:var(--bg);color:var(--ink);font-size:14px;font-family:inherit}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+button{background:var(--accent);color:#fff;border:0;border-radius:7px;padding:9px 16px;
+  font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+button.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
+button:hover{filter:brightness(1.08)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(152px,1fr));gap:10px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:13px}
+.tile .n{font-size:25px;font-weight:700;color:var(--navy);line-height:1.15}
+.tile .l{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.35}
+.tile.hero .n{color:var(--good-ink)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--blue);color:#fff;text-align:left;padding:8px 9px;font-size:11.5px;
+  text-transform:uppercase;letter-spacing:.03em;position:sticky;top:0;z-index:2;font-weight:600}
+td{padding:8px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+tbody tr:hover{background:rgba(127,127,127,.07)}
+.scroll{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap}
+.g{background:var(--good-bg);color:var(--good-ink)} .w{background:var(--warn-bg);color:var(--warn-ink)}
+.b{background:var(--bad-bg);color:var(--bad-ink)} .s{background:var(--star-bg);color:var(--star-ink)}
+.mut{color:var(--muted)} .nowrap{white-space:nowrap} .num{text-align:right;font-variant-numeric:tabular-nums}
+a{color:var(--accent)}
+details summary{cursor:pointer;font-weight:600;color:var(--navy)}
+.status{font-size:13px;color:var(--muted);margin-left:10px}
+.note{font-size:12.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+.bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.err{background:var(--bad-bg);color:var(--bad-ink);padding:12px;border-radius:8px;font-size:13.5px}
+select.st{font-size:12px;padding:4px 6px}
+@media(max-width:640px){.wrap{padding:0 16px 48px}h1{font-size:18px}.tile .n{font-size:21px}}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>NYC Affordable Housing — Lottery Tracker</h1>
+  <div class="sub">Live from the NYC Housing Connect public API · commute times from the MTA GTFS schedule ·
+    work destination: Crotona Park East, Bronx</div>
+</div></header>
+
+<div class="wrap">
+
+<div class="bar">
+  <button id="refresh">Refresh listings</button>
+  <button class="ghost" id="theme">Light / dark</button>
+  <span class="status" id="status">Loading…</span>
+</div>
+<div id="error"></div>
+
+<details class="card" id="inputsCard">
+  <summary>Your inputs — everything recalculates from here</summary>
+  <div class="grid" style="margin-top:14px">
+    <div><label>Your annual salary (gross)</label><input type="number" id="i_sal" step="500"></div>
+    <div><label>Additional / other income</label><input type="number" id="i_other" step="500"></div>
+    <div><label>Household size</label>
+      <select id="i_hh"><option value="1">1 — just me</option><option value="2">2 — with a brother</option>
+      <option value="3">3 — with two brothers</option></select></div>
+    <div><label>Brother 2 income</label><input type="number" id="i_m2" step="500"></div>
+    <div><label>Brother 3 income</label><input type="number" id="i_m3" step="500"></div>
+    <div><label>Household assets</label><input type="number" id="i_assets" step="500"></div>
+    <div><label>Target rent burden %</label><input type="number" id="i_burden" step="1"></div>
+    <div><label>Preferred max rent</label><input type="number" id="i_pmax" step="50"></div>
+    <div><label>Absolute max rent</label><input type="number" id="i_amax" step="50"></div>
+    <div><label>Max walk to station (min)</label><input type="number" id="i_walk" step="1"></div>
+    <div><label>Walk from station to work (min)</label><input type="number" id="i_walkd" step="1"></div>
+    <div><label>Absolute max commute (min)</label><input type="number" id="i_cmax" step="5"></div>
+  </div>
+  <div class="grid" style="margin-top:14px">
+    <div><label>Manhattan</label><select id="g_man"><option>YES</option><option>NO</option></select></div>
+    <div><label>Brooklyn — direct 2/5</label><select id="g_b25"><option>YES</option><option>NO</option></select></div>
+    <div><label>Brooklyn — 3/4 lines</label><select id="g_b34"><option>YES</option><option>NO</option></select></div>
+    <div><label>Brooklyn — other lines</label><select id="g_bot"><option>NO</option><option>YES</option></select></div>
+    <div><label>Bronx</label><select id="g_bx"><option>NO</option><option>YES</option></select></div>
+    <div><label>Queens / Staten Island</label><select id="g_qsi"><option>NO</option><option>YES</option></select></div>
+    <div><label>Studios OK</label><select id="u_st"><option>YES</option><option>NO</option></select></div>
+    <div><label>1-bedrooms OK</label><select id="u_1b"><option>YES</option><option>NO</option></select></div>
+  </div>
+  <div class="note">Income must be <b>gross, before tax and before any deductions</b> — HPD Marketing Handbook §5-4.A(3).
+    Take-home pay and commuting costs do not reduce it. Your inputs are saved in this browser only; nothing is uploaded.</div>
+</details>
+
+<div class="tiles" id="tiles"></div>
+
+<h2>Apply now — eligible, affordable and commutable</h2>
+<div class="scroll"><table id="applyTable"><thead></thead><tbody></tbody></table></div>
+<div class="note" id="applyNote"></div>
+
+<h2>Everything tracked <span class="mut" style="font-weight:400;font-size:13px">— including what you do not qualify for, and why</span></h2>
+<div class="bar">
+  <select id="filter" style="max-width:320px">
+    <option value="all">Show all</option>
+    <option value="elig">Income eligible only</option>
+    <option value="review">Needs review</option>
+    <option value="geo">In allowed geography</option>
+    <option value="hc">Housing Connect lotteries only</option>
+  </select>
+</div>
+<div class="scroll"><table id="allTable"><thead></thead><tbody></tbody></table></div>
+
+<h2>Commute reference — best stations for Crotona Park East</h2>
+<div class="scroll" style="max-height:44vh"><table id="transitTable"><thead></thead><tbody></tbody></table></div>
+<div class="note">Minutes are scheduled in-vehicle time plus transfer time to <b>Freeman St</b> or <b>174 St</b> (both served by
+  the <b>2</b> and the <b>5</b>), computed from the MTA GTFS weekday feed for 06:30–09:00 departures. Stations that share a
+  name are treated separately — there is no free transfer between the three different 125 St stations.</div>
+
+<h2>The rules that decide this</h2>
+<div class="card"><div id="rules"></div></div>
+
+<div class="note" style="margin-top:24px">
+  Built 18 Sep 2026. Listings load live from
+  <a href="https://housingconnect.nyc.gov/PublicWeb/search-lotteries" target="_blank" rel="noopener">NYC Housing Connect</a>;
+  curated re-rentals come from <a href="https://www.nychdc.com/find-re-rentals" target="_blank" rel="noopener">NYC HDC</a>
+  and HPD's <a href="https://www.nyc.gov/site/hpd/services-and-information/find-affordable-housing-re-rentals.page" target="_blank" rel="noopener">list of re-rental marketing agents</a>,
+  and are dated — re-check them against the linked advertisement before applying.
+</div>
+</div>
+
+<script>
+const API="https://a806-housingconnectapi.nyc.gov/HPDPublicAPI/api";
+const AMI1=118800, AMI4=169600;              // 2026 NYC AMI, 1-person and 4-person (HPD)
+const HHMULT={1:1,2:1.143,3:1.286};
+const WALK_MPM=80;                            // metres per minute (~4.8 km/h)
+const WAIT=4;                                 // average wait at origin
+const XFER_BUF=4;                             // buffer on top of GTFS minimum transfer time
+const DEFAULTS={sal:72000,other:0,m2:0,m3:0,hh:1,assets:0,burden:30,pmax:1800,amax:2100,
+  walk:12,walkd:7,cmax:70,g_man:"YES",g_b25:"YES",g_b34:"YES",g_bot:"NO",g_bx:"NO",g_qsi:"NO",
+  u_st:"YES",u_1b:"YES"};
+const FIELDS=["sal","other","m2","m3","hh","assets","burden","pmax","amax","walk","walkd","cmax",
+  "g_man","g_b25","g_b34","g_bot","g_bx","g_qsi","u_st","u_1b"];
+const ID={sal:"i_sal",other:"i_other",m2:"i_m2",m3:"i_m3",hh:"i_hh",assets:"i_assets",
+  burden:"i_burden",pmax:"i_pmax",amax:"i_amax",walk:"i_walk",walkd:"i_walkd",cmax:"i_cmax",
+  g_man:"g_man",g_b25:"g_b25",g_b34:"g_b34",g_bot:"g_bot",g_bx:"g_bx",g_qsi:"g_qsi",
+  u_st:"u_st",u_1b:"u_1b"};
+const STATUSES=["NEW","CHECKING ELIGIBILITY","ELIGIBLE","APPLY NOW","APPLIED","DOCUMENT REQUEST",
+  "DOCUMENTS SUBMITTED","PROCESSING","INTERVIEW","WAITLIST","OFFER","NOT SELECTED","REJECTED",
+  "EXPIRED","NOT ELIGIBLE"];
+
+let STATIONS=[], ROWS=[], INP={...DEFAULTS};
+const ls={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
+          set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let STATUS=ls.get("hl.status",{});
+const $=id=>document.getElementById(id);
+const money=n=>n==null||n===""?"—":"$"+Math.round(n).toLocaleString();
+const pct=n=>n==null?"—":(n*100).toFixed(1)+"%";
+
+function loadInputs(){
+  INP={...DEFAULTS,...ls.get("hl.inputs",{})};
+  FIELDS.forEach(f=>{const el=$(ID[f]); if(el) el.value=INP[f];});
+}
+function readInputs(){
+  FIELDS.forEach(f=>{const el=$(ID[f]); if(!el)return;
+    INP[f]=(typeof DEFAULTS[f]==="number")?(parseFloat(el.value)||0):el.value;});
+  ls.set("hl.inputs",INP); render();
+}
+const income=()=>INP.sal+INP.other+(INP.hh>=2?INP.m2:0)+(INP.hh>=3?INP.m3:0);
+const gmi=()=>income()/12;
+
+function hav(a,b,c,d){const R=6371000,t=Math.PI/180;
+  const x=(c-a)*t,y=(d-b)*t,u=Math.sin(x/2)**2+Math.cos(a*t)*Math.cos(c*t)*Math.sin(y/2)**2;
+  return 2*R*Math.asin(Math.sqrt(u));}
+
+// Returns the fastest station that is within the walking limit (falling back to anything
+// within ~17 min if nothing is closer), PLUS every station in walking range — the corridor
+// must be judged on all reachable lines, not just the single fastest one.
+function nearby(lat,lon){
+  if(lat==null||lon==null) return {best:null,all:[]};
+  const limit=Math.max(INP.walk,1)*WALK_MPM;
+  const all=[];
+  for(const s of STATIONS){
+    const d=hav(lat,lon,s.lat,s.lon);
+    if(d>1400) continue;
+    all.push({st:s,walk:d/WALK_MPM,total:d/WALK_MPM+WAIT+s.min+s.transfers*XFER_BUF+INP.walkd,dist:d});
+  }
+  all.sort((a,b)=>a.total-b.total);
+  const within=all.filter(x=>x.dist<=limit);
+  return {best:(within[0]||all[0]||null), all:within.length?within:all};
+}
+function corridorOf(boro,near){
+  if(boro==="Bronx") return "Bronx";
+  if(boro==="Queens"||boro==="Staten Island") return "Queens/SI";
+  if(boro==="Manhattan") return "Manhattan";
+  if(boro==="Brooklyn"){
+    const L=new Set();
+    (near.all||[]).forEach(x=>x.st.lines.split(" ").forEach(l=>L.add(l)));
+    if(L.has("2")||L.has("5")) return "Brooklyn 2/5";
+    if(L.has("3")||L.has("4")) return "Brooklyn 3/4";
+    return "Brooklyn other";
+  }
+  return boro||"—";
+}
+function geoOK(c){
+  return ({"Manhattan":INP.g_man,"Brooklyn 2/5":INP.g_b25,"Brooklyn 3/4":INP.g_b34,
+    "Brooklyn other":INP.g_bot,"Bronx":INP.g_bx,"Queens/SI":INP.g_qsi}[c]||"NO")==="YES";
+}
+function grade(tr,walk,door){
+  if(door==null) return "—";
+  if(tr===0&&walk<=8&&door<=45) return "A+";
+  if(tr===0&&door<=60) return "A";
+  if(tr===1&&door<=70) return "B";
+  if(tr<=1&&door<=85) return "C";
+  return "D";
+}
+function classify(rent,util){
+  if(rent==null) return "REVIEW — no rent";
+  if(rent>INP.amax) return "ABOVE ABSOLUTE MAXIMUM";
+  const b=(rent+util)/gmi();
+  if(b<=0.25) return "VERY AFFORDABLE";
+  if(b<=INP.burden/100) return "AFFORDABLE";
+  if(b<=0.35) return "BORDERLINE";
+  return "ABOVE TARGET";
+}
+function eligibility(r){
+  const mx=r["max"+INP.hh];
+  if(mx==="N/A") return "NO — no unit for this household size";
+  const inc=income();
+  if(r.min!=null&&inc<r.min) return "NO — below minimum";
+  if(mx==null) return "REVIEW — maximum not published";
+  if(inc>mx) return "NO — over maximum";
+  if(r.min==null) return "REVIEW — minimum not published";
+  return "YES";
+}
+
+function enrich(r){
+  const near=nearby(r.lat,r.lon), st=near.best;
+  r.station=st?st.st.name:"—";
+  r.lines=st?st.st.lines:"";
+  r.walk=st?Math.round(st.walk):null;
+  r.ride=st?Math.round(st.st.min):null;
+  r.transfers=st?st.st.transfers:null;
+  r.dest=st?st.st.dest:"—";
+  r.door=st?Math.round(st.total):null;
+  r.alt=(near.all||[]).slice(1,3).map(x=>x.st.name+" ("+x.st.lines+") "+Math.round(x.total)+" min").join(" · ");
+  r.corridor=(r.zip==="10044")?"Not on Manhattan island":corridorOf(r.boro,near);
+  r.geo=geoOK(r.corridor);
+  r.grade=grade(r.transfers,r.walk??99,r.door);
+  r.elig=eligibility(r);
+  r.util=r.util||0;
+  r.afford=classify(r.rent,r.util);
+  r.burden=r.rent!=null?(r.rent+r.util)/gmi():null;
+  r.assetOK=r.asset==null?null:(INP.assets<=r.asset);
+  const unitOK=(r.beds===0?INP.u_st==="YES":(r.beds===1?INP.u_1b==="YES":true));
+  r.pass = r.elig==="YES" && r.geo && unitOK &&
+    ["VERY AFFORDABLE","AFFORDABLE","BORDERLINE"].includes(r.afford) &&
+    (r.door==null||r.door<=INP.cmax);
+  r.key=r.id+"|"+r.unit+"|"+r.ami;
+  r.status=STATUS[r.key]||"NEW";
+  r.days=r.deadline?Math.ceil((new Date(r.deadline)-new Date())/864e5):null;
+  return r;
+}
+
+async function fetchHC(){
+  const body={UnitTypes:[],NearbyPlaces:[],NearbySubways:[],Amenities:[],Applied:null,HPDUserId:null,
+    Boroughs:[],Neighborhoods:[],HouseholdSize:null,Income:"",HouseholdType:1,OwnerTypes:[],
+    PreferanceTypes:[],LotteryTypes:[],Min:null,Max:null,RentalSubsidy:null};
+  const res=await fetch(API+"/Lottery/SearchLotteries",
+    {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  if(!res.ok) throw new Error("Housing Connect search returned "+res.status);
+  const j=await res.json();
+  const list=j.rentals||[];
+  const ads=await Promise.all(list.map(l=>
+    fetch(API+"/Lottery/GetLotteryAdvertisement?lotteryId="+l.lotteryId)
+      .then(r=>r.ok?r.json():null).catch(()=>null)));
+  const rows=[];
+  ads.forEach((ad,i)=>{
+    if(!ad) return;
+    const meta=list[i], b=(ad.lotteryBuildings||[])[0]||{};
+    const prefs=ad.lotterySetAsidePreferences||[];
+    const me=prefs.find(p=>/municipal/i.test(p.name||""));
+    const cb=prefs.find(p=>/community board/i.test(p.name||""));
+    const seen={};
+    (ad.units||[]).forEach(u=>{
+      const k=u.unitLayoutTypeName+"|"+u.unitRegulatoryMechanismAmi+"|"+u.actualRent;
+      if(!seen[k]) seen[k]={inc:{},u};
+      (u.unitIncome||[]).forEach(x=>{seen[k].inc[x.houseHoldSize]=[x.minimumIncome,x.maximumIncome];});
+    });
+    Object.values(seen).forEach(({inc,u})=>{
+      const sizes=Object.keys(inc).map(Number);
+      const mins=sizes.map(s=>inc[s][0]).filter(v=>v!=null);
+      const get=n=>inc[n]?inc[n][1]:(sizes.length&&n<Math.min(...sizes)?"N/A":null);
+      const beds=/studio/i.test(u.unitLayoutTypeName)?0:
+        (parseInt((u.unitLayoutTypeName||"").match(/\d+/)?.[0])||0);
+      rows.push({
+        id:"HC-"+ad.lotteryId, name:ad.lotteryName,
+        addr:[b.address,b.city,b.state,b.zip].filter(Boolean).join(", "),
+        zip:b.zip, hood:meta.neighborhood||"", boro:(meta.borough||"").trim(),
+        cb:cb?cb.name:"", program:ad.lotteryDescription||"Housing Connect lottery",
+        url:"https://housingconnect.nyc.gov/PublicWeb/details/"+ad.lotteryId,
+        appurl:"https://housingconnect.nyc.gov/PublicWeb/details/"+ad.lotteryId,
+        deadline:ad.endDate?ad.endDate.slice(0,10):null,
+        unit:u.unitLayoutTypeName, beds, ami:u.unitRegulatoryMechanismAmi+"% AMI",
+        min:mins.length?Math.min(...mins):null,
+        max1:get(1), max2:get(2), max3:get(3),
+        rent:u.actualRent||null,
+        asset:u.maximumAssetCap>0?u.maximumAssetCap:Math.round(AMI4*u.unitRegulatoryMechanismAmi/100),
+        util:0, utilinc:"See advertisement",
+        mepref:me?"YES":"NO", prefpct:me?me.requirementAllocation:null,
+        amen:(ad.amenities||[]).map(a=>a.name).join(", "),
+        lat:b.latitude?parseFloat(b.latitude):null, lon:b.longitude?parseFloat(b.longitude):null,
+        source:"NYC Housing Connect (live)", notes:""
+      });
+    });
+  });
+  return rows;
+}
+
+async function load(){
+  $("status").textContent="Loading…"; $("error").innerHTML="";
+  try{
+    const [st,man]=await Promise.all([
+      fetch("data/commute.json").then(r=>r.json()),
+      fetch("data/manual-listings.json").then(r=>r.json()).catch(()=>[])]);
+    STATIONS=st;
+    let hc=[];
+    try{ hc=await fetchHC(); }
+    catch(e){ $("error").innerHTML='<div class="err"><b>Could not reach Housing Connect.</b> '+
+      e.message+' — curated listings below are still shown. Try Refresh in a moment.</div>'; }
+    ROWS=[...hc,...man.map(m=>({...m,max1:m.max1,max2:m.max2,max3:m.max3}))];
+    const prev=ls.get("hl.seen",[]);
+    const now=ROWS.map(r=>r.id);
+    ROWS.forEach(r=>{r.isNew=prev.length>0&&!prev.includes(r.id);});
+    ls.set("hl.seen",[...new Set(now)]);
+    $("status").textContent=hc.length+" live Housing Connect unit rows · "+man.length+
+      " curated · updated "+new Date().toLocaleString();
+    render();
+  }catch(e){
+    $("error").innerHTML='<div class="err"><b>Load failed.</b> '+e.message+'</div>';
+    $("status").textContent="";
+  }
+}
+
+function pillFor(v){
+  if(v==="YES"||v==="VERY AFFORDABLE"||v==="AFFORDABLE"||v==="A+"||v==="A") return "g";
+  if(String(v).startsWith("REVIEW")||v==="BORDERLINE"||v==="B"||v==="C") return "w";
+  return "b";
+}
+function tbl(el,cols,rows,rowFn){
+  const t=$(el);
+  t.querySelector("thead").innerHTML="<tr>"+cols.map(c=>"<th>"+c+"</th>").join("")+"</tr>";
+  t.querySelector("tbody").innerHTML=rows.length?rows.map(rowFn).join(""):
+    '<tr><td colspan="'+cols.length+'" class="mut" style="padding:18px">Nothing matches right now.</td></tr>';
+}
+
+function render(){
+  if(!ROWS.length) return;
+  ROWS.forEach(enrich);
+  const inAllowed=ROWS.filter(r=>r.geo);
+  const pass=ROWS.filter(r=>r.pass&&r.status!=="APPLIED");
+  pass.sort((a,b)=>(a.days??999)-(b.days??999)||
+    ({"VERY AFFORDABLE":1,"AFFORDABLE":2,"BORDERLINE":3}[a.afford]||9)-
+    ({"VERY AFFORDABLE":1,"AFFORDABLE":2,"BORDERLINE":3}[b.afford]||9)||
+    ({"A+":1,A:2,B:3,C:4,D:5}[a.grade]||9)-({"A+":1,A:2,B:3,C:4,D:5}[b.grade]||9));
+
+  $("tiles").innerHTML=[
+    ["hero",pass.length,"Pass all three tests"],
+    ["",ROWS.length,"Unit options tracked"],
+    ["",inAllowed.length,"In allowed geography"],
+    ["",ROWS.filter(r=>r.elig==="YES").length,"Income eligible"],
+    ["",ROWS.filter(r=>r.elig.startsWith("REVIEW")).length,"Need review"],
+    ["",ROWS.filter(r=>r.mepref==="YES").length,"With 10% municipal preference"],
+    ["",ROWS.filter(r=>r.days!=null&&r.days>=0&&r.days<=7).length,"Closing within 7 days"],
+    ["",ROWS.filter(r=>r.isNew).length,"New since your last visit"],
+    ["",money(gmi()*INP.burden/100),"Target monthly housing cost"],
+    ["",money(income()),"Countable household income"],
+  ].map(([c,n,l])=>'<div class="tile '+c+'"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>').join("");
+
+  const A=["Deadline","Days","Building","Area","Unit","AMI","Rent","Burden","Station","Walk","Route","Commute","Grade","Muni 10%","Status"];
+  tbl("applyTable",A,pass,r=>"<tr>"+[
+    r.deadline||'<span class="mut">ongoing</span>',
+    r.days!=null?'<span class="pill '+(r.days<=7?"b":r.days<=14?"w":"g")+'">'+r.days+"</span>":"—",
+    '<a href="'+r.url+'" target="_blank" rel="noopener">'+r.name+"</a>"+(r.isNew?' <span class="pill s">NEW</span>':""),
+    (r.hood||"")+'<br><span class="mut">'+r.boro+"</span>",
+    r.unit, r.ami,
+    '<span class="num">'+money(r.rent)+"</span>",
+    '<span class="pill '+(r.burden<=.25?"g":r.burden<=.30?"g":r.burden<=.35?"w":"b")+'">'+pct(r.burden)+"</span>",
+    r.station+'<br><span class="mut">'+r.lines+"</span>",
+    r.walk!=null?r.walk+" min":"—",
+    r.transfers===0?'<span class="pill g">direct</span>':(r.transfers+" transfer"+(r.transfers>1?"s":"")),
+    r.door!=null?r.door+" min":"—",
+    '<span class="pill '+pillFor(r.grade)+'">'+r.grade+"</span>",
+    r.mepref==="YES"?'<span class="pill g">YES</span>':'<span class="mut">no</span>',
+    sel(r)
+  ].map(c=>"<td>"+c+"</td>").join("")+"</tr>");
+  $("applyNote").innerHTML=pass.length?
+    "Sorted by deadline, then affordability, then transit quality — not by any guess at your odds.":
+    "Nothing passes all three tests at these settings. Widen the geography toggles or raise the rent ceiling to see near-misses below.";
+
+  const f=$("filter").value;
+  let show=ROWS.slice();
+  if(f==="elig") show=show.filter(r=>r.elig==="YES");
+  if(f==="review") show=show.filter(r=>r.elig.startsWith("REVIEW"));
+  if(f==="geo") show=show.filter(r=>r.geo);
+  if(f==="hc") show=show.filter(r=>r.source.startsWith("NYC Housing Connect"));
+  show.sort((a,b)=>(b.elig==="YES")-(a.elig==="YES")||(a.rent??1e9)-(b.rent??1e9));
+
+  const B=["Building","Area","Unit","AMI","Rent","Min income","Max (HH "+INP.hh+")","Eligible?","Affordability",
+           "Station","Commute","Grade","Geography","Asset cap","Muni 10%","Source","Status","Notes"];
+  tbl("allTable",B,show,r=>"<tr>"+[
+    '<a href="'+r.url+'" target="_blank" rel="noopener">'+r.name+"</a>"+(r.isNew?' <span class="pill s">NEW</span>':"")+
+      '<br><span class="mut">'+(r.addr||"")+"</span>",
+    (r.hood||"")+'<br><span class="mut">'+r.boro+"</span>",
+    r.unit, r.ami,
+    '<span class="num">'+money(r.rent)+"</span>",
+    '<span class="num">'+money(r.min)+"</span>",
+    '<span class="num">'+(r["max"+INP.hh]==="N/A"?'<span class="mut">n/a</span>':money(r["max"+INP.hh]))+"</span>",
+    '<span class="pill '+pillFor(r.elig)+'">'+r.elig+"</span>",
+    '<span class="pill '+pillFor(r.afford)+'">'+r.afford+"</span>",
+    r.station+'<br><span class="mut">'+r.lines+"</span>",
+    r.door!=null?r.door+" min":"—",
+    '<span class="pill '+pillFor(r.grade)+'">'+r.grade+"</span>",
+    r.corridor+(r.geo?"":' <span class="pill b">excluded</span>'),
+    money(r.asset)+(r.assetOK===false?' <span class="pill b">over</span>':""),
+    r.mepref==="YES"?'<span class="pill g">'+(r.prefpct||10)+"%</span>":'<span class="mut">no</span>',
+    '<span class="mut">'+r.source+"</span>",
+    sel(r),
+    '<span class="mut">'+(r.notes||"")+"</span>"
+  ].map(c=>"<td>"+c+"</td>").join("")+"</tr>");
+
+  const T=["Station","Lines","Borough","Minutes to work","Transfers","Arrives at"];
+  const tp=STATIONS.filter(s=>s.min<=45).sort((a,b)=>a.min-b.min).slice(0,45);
+  tbl("transitTable",T,tp,s=>"<tr>"+[
+    s.name,s.lines,s.boro==="M"?"Manhattan":"Brooklyn",
+    '<span class="num">'+s.min.toFixed(0)+" min</span>",
+    s.transfers===0?'<span class="pill g">direct</span>':s.transfers,s.dest
+  ].map(c=>"<td>"+c+"</td>").join("")+"</tr>");
+}
+
+function sel(r){
+  return '<select class="st" data-k="'+r.key+'">'+STATUSES.map(s=>
+    '<option'+(s===r.status?" selected":"")+">"+s+"</option>").join("")+"</select>";
+}
+document.addEventListener("change",e=>{
+  if(e.target.classList.contains("st")){
+    STATUS[e.target.dataset.k]=e.target.value; ls.set("hl.status",STATUS); render();
+  } else if(e.target.id==="filter"){ render(); }
+  else if(Object.values(ID).includes(e.target.id)){ readInputs(); }
+});
+document.addEventListener("input",e=>{ if(Object.values(ID).includes(e.target.id)) readInputs(); });
+$("refresh").onclick=load;
+$("theme").onclick=()=>{
+  const cur=document.documentElement.getAttribute("data-theme");
+  const next=cur==="dark"?"light":cur==="light"?"dark":
+    (matchMedia("(prefers-color-scheme:dark)").matches?"light":"dark");
+  document.documentElement.setAttribute("data-theme",next); ls.set("hl.theme",next);
+};
+const th=ls.get("hl.theme",null); if(th) document.documentElement.setAttribute("data-theme",th);
+
+$("rules").innerHTML=[
+ ["Income is gross, before any deductions",
+  "“Gross income, before any expenses or deductions, is used to determine income eligibility, with the exception of self-employment income.” Take-home pay, taxes and commuting costs do not reduce it.",
+  "HPD-HDC Marketing Handbook §5-4.A(3)","https://www.nyc.gov/assets/hpd/downloads/pdfs/services/marketing-handbook-8-21.pdf"],
+ ["Siblings count as one household, automatically",
+  "“Immediate Family Member” expressly includes a sibling, and two or more Immediate Family Members are a household. Brothers do not have to prove financial interdependence — unlike friends. Incomes combine (clearing minimum-income floors) and the caps rise to about 1.143× for two people and 1.286× for three.",
+  "HPD-HDC Marketing Handbook §5-2","https://www.nyc.gov/assets/hpd/downloads/pdfs/services/marketing-handbook-8-21.pdf"],
+ ["10% Municipal Employee / Military Veteran preference",
+  "Since 15 November 2025 newly published lotteries set aside 10% of units where at least one household member is paid by the City of New York. A NYC DOE teacher qualifies; proof is paystubs issued by the City. It does not appear on every lottery — check each advertisement.",
+  "Addendum to the Marketing Handbook §5-1(C)","https://www.nyc.gov/assets/hpd/downloads/pdfs/services/MH-addendum-MEMV-preference.pdf"],
+ ["NYC residents are processed first",
+  "Within the municipal-employee preference, “New York City residents must be processed before non-residents.” A Westchester address is a real disadvantage, and the 20% community-board preference is unavailable.",
+  "Addendum §5-1(C)(2)","https://www.nyc.gov/assets/hpd/downloads/pdfs/services/MH-addendum-MEMV-preference.pdf"],
+ ["Asset limit, and assets also add to income",
+  "Household assets may not exceed the four-person HUD income limit at the unit's AMI — whatever your household size. Retirement funds, life insurance, annuities and college savings are excluded. Separately, income earned by assets is added to countable income.",
+  "Marketing Handbook §5-5.A and §5-4.I","https://www.nyc.gov/assets/hpd/downloads/pdfs/services/marketing-handbook-8-21.pdf"],
+ ["Occupancy, and the snapshot rule",
+  "Studio holds 1–2 people, 1BR 1–3, 2BR 2–5, 3BR 3–7; where you qualify for more than one size you choose. But once your application snapshot is taken, a change in household composition that affects eligibility means rejection. Decide who is applying before you apply.",
+  "Marketing Handbook §5-7 and §5-3.B","https://www.nyc.gov/assets/hpd/downloads/pdfs/services/marketing-handbook-8-21.pdf"],
+].map(([t,d,s,u])=>'<div style="margin-bottom:14px"><b>'+t+'</b><div class="note" style="margin-top:3px">'+d+
+  ' <a href="'+u+'" target="_blank" rel="noopener">'+s+'</a></div></div>').join("");
+
+loadInputs(); load();
+</script>
+</body>
+</html>
